@@ -1,0 +1,61 @@
+{
+  "values": {
+    "Preset 1": []
+  },
+  "search": {
+    "Preset 1": {
+      "attributes": [],
+      "mode": "ALL",
+      "min_count": "3"
+    }
+  },
+  "keys": {
+    "teste": {
+      "attributes": [
+        {
+          "name": "Thunder Realm",
+          "required": true
+        },
+        {
+          "name": "More Monsters",
+          "required": false
+        }
+      ],
+      "mode": "MIN",
+      "min_count": "2"
+    },
+    "xxx": {
+      "attributes": [
+        {
+          "name": "Thunder Realm",
+          "required": true
+        },
+        {
+          "name": "More Monsters",
+          "required": false
+        }
+      ],
+      "mode": "MIN",
+      "min_count": "2"
+    },
+    "Preset 1": {
+      "attributes": [],
+      "mode": "ALL",
+      "min_count": "3"
+    },
+    "xxxa": {
+      "attributes": [
+        {
+          "name": "Thunder Realm",
+          "required": true
+        },
+        {
+          "name": "More Monsters",
+          "required": false
+        }
+      ],
+      "mode": "MIN",
+      "min_count": "2"
+    }
+  }
+}

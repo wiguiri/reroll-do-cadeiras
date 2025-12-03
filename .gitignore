@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+*.log
+.DS_Store
+game_automation_config.json
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+*.exe
+*.manifest
+icone.ico
+icone.png
+build.py
+
+# Tesseract portable
+tesseract_portable/
+tesseract_installer.exe
+
+# Backups
+*.backup
+game_automation.py.backup
