@@ -57,5 +57,11 @@
       "mode": "MIN",
       "min_count": "2"
     }
+  },
+  "t7": {
+    "Preset 1": {
+      "mode": "ANY",
+      "specific_attributes": []
+    }
   }
 }

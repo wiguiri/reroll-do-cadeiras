@@ -118,13 +118,18 @@ class PresetManager:
         presets = self.load_all_presets()
         modified = False
         
-        for tab_type in ['values', 'search', 'keys']:
+        for tab_type in ['values', 'search', 't7', 'keys']:
             if 'Preset 1' not in presets.get(tab_type, {}):
                 if tab_type not in presets:
                     presets[tab_type] = {}
                 
                 if tab_type == 'values':
                     presets[tab_type]['Preset 1'] = []
+                elif tab_type == 't7':
+                    presets[tab_type]['Preset 1'] = {
+                        'mode': 'ANY',
+                        'specific_attributes': []
+                    }
                 else:
                     presets[tab_type]['Preset 1'] = {
                         'attributes': [],

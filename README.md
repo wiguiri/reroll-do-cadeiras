@@ -1,8 +1,24 @@
-# ⚡ Reroll do Cadeiras
+# ⚡ Reroll do Cadeiras v1.2.0
 
 Ferramenta de automação para reroll de atributos em jogos.
 
 **por Victor Gomes de Sá**
+
+## ✨ Funcionalidades
+
+- **🎯 Valores Específicos** - Rola até atingir valores mínimos de atributos
+- **🔍 Busca de Atributos** - Procura por atributos específicos (todos ou mínimo)
+- **⭐ Buscar T7** - Rola até encontrar atributos Tier 7 (qualquer ou específico)
+- **🔑 Automação de Chaves** - Automação com Orb of Chance
+- **⚡ Skill Spam** - Envia teclas automaticamente para um programa (novo!)
+
+## 🆕 Novidades v1.2.0
+
+- Nova aba **Skill Spam** para enviar teclas automaticamente
+- Aba **Buscar T7** com detecção de tiers
+- Abas maiores e mais legíveis
+- Correção de bugs nos hotkeys remapeados
+- Código refatorado em módulos
 
 ## 📁 Estrutura do Projeto
 

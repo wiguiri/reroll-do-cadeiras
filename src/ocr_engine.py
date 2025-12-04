@@ -108,6 +108,93 @@ class OCREngine:
         
         return text, values
     
+    def extract_attributes_with_tiers(self, text):
+        """
+        Extrai atributos com seus tiers (T1-T7) do texto.
+        
+        Args:
+            text: Texto para processar.
+            
+        Returns:
+            list: Lista de dicts {'tier': int, 'name': str, 'value': int/str}
+        """
+        attributes_with_tiers = []
+        lines = text.split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Padrão: "T5 Mana: +274" ou "T7 Mana Percent: +113%"
+            # Também aceita: "T5Mana: +274" (sem espaço)
+            tier_match = re.match(r'^[Tt](\d)\s*([A-Za-z][A-Za-z\s]*?):\s*[+\-]?(\d+)%?', line)
+            
+            if tier_match:
+                tier = int(tier_match.group(1))
+                attr_name = tier_match.group(2).strip().lower()
+                attr_value = int(tier_match.group(3))
+                
+                attributes_with_tiers.append({
+                    'tier': tier,
+                    'name': attr_name,
+                    'value': attr_value
+                })
+                continue
+            
+            # Padrão alternativo sem dois pontos: "T5 Mana +274"
+            tier_match2 = re.match(r'^[Tt](\d)\s*([A-Za-z][A-Za-z\s]*?)\s+[+\-]?(\d+)%?', line)
+            
+            if tier_match2:
+                tier = int(tier_match2.group(1))
+                attr_name = tier_match2.group(2).strip().lower()
+                attr_value = int(tier_match2.group(3))
+                
+                attributes_with_tiers.append({
+                    'tier': tier,
+                    'name': attr_name,
+                    'value': attr_value
+                })
+        
+        return attributes_with_tiers
+    
+    def extract_t7_attributes(self, image):
+        """
+        Extrai especificamente atributos T7 de uma imagem.
+        
+        Args:
+            image: Imagem PIL para processar.
+            
+        Returns:
+            tuple: (texto, lista_de_t7s)
+        """
+        # Tenta com imagem normal primeiro
+        text = self.extract_text(image)
+        t7_attrs = [a for a in self.extract_attributes_with_tiers(text) if a['tier'] == 7]
+        
+        # Se não encontrou T7, tenta com processamento
+        if not t7_attrs:
+            gray = image.convert('L')
+            enhanced = ImageEnhance.Contrast(gray).enhance(2.5)
+            text_enhanced = self.extract_text(enhanced, '--psm 6')
+            t7_attrs = [a for a in self.extract_attributes_with_tiers(text_enhanced) if a['tier'] == 7]
+            
+            if t7_attrs:
+                text = text_enhanced
+        
+        # Tentativa com inversão
+        if not t7_attrs:
+            gray = image.convert('L')
+            inverted = ImageOps.invert(gray)
+            inverted_contrast = ImageEnhance.Contrast(inverted).enhance(3.0)
+            text_inv = self.extract_text(inverted_contrast, '--psm 6')
+            t7_attrs = [a for a in self.extract_attributes_with_tiers(text_inv) if a['tier'] == 7]
+            
+            if t7_attrs:
+                text = text_inv
+        
+        return text, t7_attrs
+    
     def extract_attributes_from_text(self, text):
         """
         Extrai atributos e valores numéricos do texto capturado.

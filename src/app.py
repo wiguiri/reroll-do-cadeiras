@@ -21,7 +21,7 @@ from src.presets import PresetManager, ConfigManager
 from src.ocr_engine import OCREngine
 from src.automation import AutomationEngine
 from src.updater import AutoUpdater
-from src.ui.tabs import ValuesTab, SearchTab, KeysTab
+from src.ui.tabs import ValuesTab, SearchTab, KeysTab, T7Tab, SkillSpamTab
 from src.ui.components import LogWindow, StatusBar
 from src.ui.dialogs import HotkeySettingsDialog, NewPresetDialog, UpdateDialog, UpdateProgressDialog
 
@@ -61,6 +61,10 @@ class GameAutomation:
         self.orb_position = None
         self.bp_position = None
         
+        # Skill spam
+        self.skill_spam_running = False
+        self.skill_spam_threads = []
+        
         # UI
         self.log_window = LogWindow(self.root)
         self.log_text = None  # Para compatibilidade
@@ -75,6 +79,9 @@ class GameAutomation:
         
         # Carregar configurações
         self.load_config()
+        
+        # Configurar hotkeys APÓS carregar config (para usar hotkeys salvos)
+        self._setup_local_hotkeys()
         self.setup_global_hotkeys()
         
         # Eventos
@@ -110,7 +117,7 @@ class GameAutomation:
         self._build_controls(main_container)
         self._build_footer(main_container)
         
-        self._setup_local_hotkeys()
+        # Hotkeys serão configurados após load_config()
     
     def _build_header(self, parent):
         """Constrói o cabeçalho."""
@@ -144,18 +151,33 @@ class GameAutomation:
     
     def _build_tabs(self, parent):
         """Constrói as abas."""
-        self.tabview = ctk.CTkTabview(parent, corner_radius=10)
+        self.tabview = ctk.CTkTabview(
+            parent, 
+            corner_radius=10,
+            segmented_button_fg_color=("gray85", "gray25"),
+            segmented_button_selected_color=("#3b82f6", "#2563eb"),
+            segmented_button_selected_hover_color=("#2563eb", "#1d4ed8"),
+            segmented_button_unselected_color=("gray85", "gray25"),
+            segmented_button_unselected_hover_color=("gray75", "gray35")
+        )
         self.tabview.grid(row=1, column=0, sticky="nsew", pady=(0, 15))
+        
+        # Aumentar tamanho das abas
+        self.tabview._segmented_button.configure(font=(UI_CONFIG['font_family'], 12, "bold"))
         
         # Criar abas
         self.tabview.add("🎯 Valores Específicos")
         self.tabview.add("🔍 Busca de Atributos")
+        self.tabview.add("⭐ Buscar T7")
         self.tabview.add("🔑 Automação de Chaves")
+        self.tabview.add("⚡ Skill Spam")
         
         # Instanciar abas
         self.tab_values = ValuesTab(self.tabview.tab("🎯 Valores Específicos"), self)
         self.tab_search = SearchTab(self.tabview.tab("🔍 Busca de Atributos"), self)
+        self.tab_t7 = T7Tab(self.tabview.tab("⭐ Buscar T7"), self)
         self.tab_keys = KeysTab(self.tabview.tab("🔑 Automação de Chaves"), self)
+        self.tab_skill_spam = SkillSpamTab(self.tabview.tab("⚡ Skill Spam"), self)
     
     def _build_controls(self, parent):
         """Constrói os controles inferiores."""
@@ -327,12 +349,24 @@ class GameAutomation:
     
     def _setup_local_hotkeys(self):
         """Configura atalhos locais da janela."""
-        for key in ['F1', 'F3', 'F5', 'F6']:
+        # Remove TODOS os bindings de teclas de função e teclas comuns
+        keys_to_unbind = [
+            'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+            'Escape', 'Return', 'space'
+        ]
+        
+        # Também remove os hotkeys atuais configurados
+        for hotkey in self.hotkeys.values():
+            if hotkey not in keys_to_unbind:
+                keys_to_unbind.append(hotkey)
+        
+        for key in keys_to_unbind:
             try:
                 self.root.unbind(f'<{key}>')
             except:
                 pass
         
+        # Configura os novos bindings
         self.root.bind(f'<{self.hotkeys["region"]}>', lambda e: self.select_region_visual())
         self.root.bind(f'<{self.hotkeys["test"]}>', lambda e: self.test_capture_detailed())
         self.root.bind(f'<{self.hotkeys["start"]}>', lambda e: self.start_automation())
@@ -517,6 +551,123 @@ class GameAutomation:
             self.log(f"Erro: {e}")
             messagebox.showerror("Erro", f"Erro ao capturar: {e}")
     
+    def test_t7_capture(self):
+        """Testa captura de tiers T7 e mostra todos os atributos encontrados."""
+        if not self.region:
+            messagebox.showwarning("Aviso", "Configure a região primeiro (F1)")
+            return
+        
+        try:
+            self.log("🔍 Testando captura T7...")
+            self.log_to_detail("\n" + "="*60, 'header')
+            self.log_to_detail("🔍 TESTE DE CAPTURA T7", 'header')
+            self.log_to_detail("="*60, 'header')
+            
+            screenshot = self.ocr.capture_region(self.region)
+            
+            # Tenta múltiplas configurações de OCR para melhor resultado
+            from PIL import ImageEnhance, ImageOps
+            
+            all_results = []
+            
+            # Tentativa 1: Imagem normal
+            text1 = self.ocr.extract_text(screenshot)
+            tiers1 = self.ocr.extract_attributes_with_tiers(text1)
+            all_results.append(('Normal', tiers1))
+            
+            # Tentativa 2: Escala de cinza + contraste
+            gray = screenshot.convert('L')
+            enhanced = ImageEnhance.Contrast(gray).enhance(2.5)
+            text2 = self.ocr.extract_text(enhanced, '--psm 6')
+            tiers2 = self.ocr.extract_attributes_with_tiers(text2)
+            all_results.append(('Contraste', tiers2))
+            
+            # Tentativa 3: Inversão
+            inverted = ImageOps.invert(gray)
+            inv_contrast = ImageEnhance.Contrast(inverted).enhance(3.0)
+            text3 = self.ocr.extract_text(inv_contrast, '--psm 6')
+            tiers3 = self.ocr.extract_attributes_with_tiers(text3)
+            all_results.append(('Invertido', tiers3))
+            
+            # Tentativa 4: Brightness
+            bright = ImageEnhance.Brightness(gray).enhance(1.5)
+            text4 = self.ocr.extract_text(bright, '--psm 6')
+            tiers4 = self.ocr.extract_attributes_with_tiers(text4)
+            all_results.append(('Brilho', tiers4))
+            
+            # Pega o melhor resultado (mais atributos)
+            best_method, best_tiers = max(all_results, key=lambda x: len(x[1]))
+            
+            # Log detalhado
+            self.log_to_detail(f"\n📊 Melhor método: {best_method} ({len(best_tiers)} atributos)", 'info')
+            
+            has_t7 = False
+            t7_attrs = []
+            
+            if best_tiers:
+                self.log_to_detail(f"\n📋 Atributos encontrados:", 'info')
+                for attr in best_tiers:
+                    tier = attr['tier']
+                    name = attr['name'].upper()
+                    value = attr['value']
+                    
+                    if tier == 7:
+                        self.log_to_detail(f"  ⭐ T{tier} {name}: +{value}", 'success')
+                        self.log(f"⭐ T{tier} {name}: +{value}")
+                        has_t7 = True
+                        t7_attrs.append(f"T{tier} {name}: +{value}")
+                    elif tier >= 5:
+                        self.log_to_detail(f"  🔶 T{tier} {name}: +{value}", 'warning')
+                        self.log(f"🔶 T{tier} {name}: +{value}")
+                    else:
+                        self.log_to_detail(f"  ⚪ T{tier} {name}: +{value}", 'info')
+                        self.log(f"⚪ T{tier} {name}: +{value}")
+            else:
+                self.log_to_detail("⚠️ Nenhum atributo com tier detectado", 'warning')
+                self.log("⚠️ Nenhum atributo detectado")
+            
+            # Comparação de métodos
+            self.log_to_detail(f"\n📈 Comparação de métodos:", 'info')
+            for method, tiers in all_results:
+                self.log_to_detail(f"  • {method}: {len(tiers)} atributos", 'info')
+            
+            # Atualiza label na aba T7
+            if has_t7:
+                self.tab_t7.test_result_label.configure(
+                    text=f"⭐ T7 ENCONTRADO! ({len(best_tiers)} attrs)",
+                    text_color="#22c55e"
+                )
+            else:
+                self.tab_t7.test_result_label.configure(
+                    text=f"❌ Sem T7 ({len(best_tiers)} attrs detectados)",
+                    text_color="#ef4444"
+                )
+            
+            # Popup
+            if best_tiers:
+                summary = f"Método: {best_method}\n\nAtributos ({len(best_tiers)}):\n\n"
+                for attr in best_tiers:
+                    tier = attr['tier']
+                    name = attr['name'].upper()
+                    value = attr['value']
+                    prefix = "⭐" if tier == 7 else ("🔶" if tier >= 5 else "⚪")
+                    summary += f"{prefix} T{tier} {name}: +{value}\n"
+                
+                if has_t7:
+                    summary += f"\n🎉 T7 ENCONTRADO!"
+            else:
+                summary = f"Nenhum atributo com tier detectado.\n\nTexto bruto:\n{text1[:300]}"
+            
+            messagebox.showinfo("🔍 Teste T7", summary)
+            
+        except Exception as e:
+            self.log(f"Erro: {e}")
+            self.tab_t7.test_result_label.configure(
+                text=f"❌ Erro: {e}",
+                text_color="#ef4444"
+            )
+            messagebox.showerror("Erro", f"Erro ao capturar: {e}")
+    
     # ============================================
     # MÉTODOS DE VERIFICAÇÃO
     # ============================================
@@ -676,6 +827,14 @@ class GameAutomation:
                 messagebox.showwarning("Aviso", "Defina pelo menos um atributo")
                 return
             mode = 'attributes'
+        
+        elif active_tab_name == "⭐ Buscar T7":
+            # Verifica se modo específico tem atributos definidos
+            if self.tab_t7.get_mode() == "SPECIFIC":
+                if not self.tab_t7.get_specific_attributes():
+                    messagebox.showwarning("Aviso", "Defina pelo menos um atributo específico para T7")
+                    return
+            mode = 't7'
             
         else:  # Automação de Chaves
             if not any(e.get_name() for e in self.tab_keys.entries):
@@ -715,6 +874,139 @@ class GameAutomation:
             self.log_to_detail("\n⬛ AUTOMAÇÃO INTERROMPIDA", 'warning')
         except Exception as e:
             print(f"Erro ao parar: {e}")
+    
+    # ============================================
+    # MÉTODOS DE SKILL SPAM
+    # ============================================
+    
+    def toggle_skill_spam(self):
+        """Alterna o estado do skill spam."""
+        if self.skill_spam_running:
+            self.stop_skill_spam()
+        else:
+            self.start_skill_spam()
+    
+    def start_skill_spam(self):
+        """Inicia o spam de skills."""
+        program = self.tab_skill_spam.get_selected_program()
+        skills = self.tab_skill_spam.get_skills_data()
+        
+        if program == "Selecione um programa" or not program:
+            messagebox.showwarning("Aviso", "Selecione um programa alvo")
+            return
+        
+        if not skills:
+            messagebox.showwarning("Aviso", "Configure pelo menos uma skill")
+            return
+        
+        # Encontra a janela do programa
+        try:
+            import win32gui
+            import win32con
+            import win32api
+            
+            hwnd = win32gui.FindWindow(None, program)
+            if not hwnd:
+                messagebox.showerror("Erro", f"Programa não encontrado: {program}")
+                return
+            
+            self.skill_spam_running = True
+            self.tab_skill_spam.set_running(True)
+            self.log(f"⚡ Skill Spam INICIADO para: {program}")
+            self.log_to_detail("\n" + "="*60, 'header')
+            self.log_to_detail(f"⚡ SKILL SPAM INICIADO", 'header')
+            self.log_to_detail(f"🖥️ Programa: {program}", 'info')
+            
+            # Registra hotkey para parar
+            hotkey = self.tab_skill_spam.get_hotkey()
+            try:
+                keyboard.add_hotkey(hotkey, self.toggle_skill_spam)
+                self.log(f"⌨️ Pressione {hotkey.upper()} para parar")
+            except:
+                pass
+            
+            # Inicia threads para cada skill
+            self.skill_spam_threads = []
+            for skill in skills:
+                key = skill['key']
+                interval = max(50, skill['interval']) / 1000.0  # Converte para segundos
+                
+                self.log_to_detail(f"  • Tecla '{key}' a cada {skill['interval']}ms", 'info')
+                
+                thread = threading.Thread(
+                    target=self._skill_spam_loop,
+                    args=(hwnd, key, interval),
+                    daemon=True
+                )
+                self.skill_spam_threads.append(thread)
+                thread.start()
+            
+        except ImportError:
+            messagebox.showerror("Erro", "Instale pywin32: pip install pywin32")
+        except Exception as e:
+            self.log(f"Erro: {e}")
+            messagebox.showerror("Erro", f"Erro ao iniciar spam: {e}")
+    
+    def stop_skill_spam(self):
+        """Para o spam de skills."""
+        self.skill_spam_running = False
+        self.tab_skill_spam.set_running(False)
+        
+        # Remove hotkey
+        try:
+            hotkey = self.tab_skill_spam.get_hotkey()
+            keyboard.remove_hotkey(hotkey)
+        except:
+            pass
+        
+        self.log("⏹️ Skill Spam PARADO")
+        self.log_to_detail("\n⏹️ SKILL SPAM PARADO", 'warning')
+    
+    def _skill_spam_loop(self, hwnd, key, interval):
+        """Loop de spam para uma skill específica."""
+        import win32gui
+        import win32con
+        import win32api
+        
+        # Mapeamento de teclas especiais
+        vk_codes = {
+            'f1': 0x70, 'f2': 0x71, 'f3': 0x72, 'f4': 0x73,
+            'f5': 0x74, 'f6': 0x75, 'f7': 0x76, 'f8': 0x77,
+            'f9': 0x78, 'f10': 0x79, 'f11': 0x7A, 'f12': 0x7B,
+            'space': 0x20, 'enter': 0x0D, 'tab': 0x09,
+            'shift': 0x10, 'ctrl': 0x11, 'alt': 0x12,
+            'esc': 0x1B, 'backspace': 0x08,
+            '0': 0x30, '1': 0x31, '2': 0x32, '3': 0x33, '4': 0x34,
+            '5': 0x35, '6': 0x36, '7': 0x37, '8': 0x38, '9': 0x39,
+        }
+        
+        # Obtém o código da tecla
+        key_lower = key.lower()
+        if key_lower in vk_codes:
+            vk = vk_codes[key_lower]
+        elif len(key_lower) == 1 and key_lower.isalpha():
+            vk = ord(key_lower.upper())
+        else:
+            self.log(f"⚠️ Tecla não reconhecida: {key}")
+            return
+        
+        while self.skill_spam_running:
+            try:
+                # Verifica se a janela ainda existe
+                if not win32gui.IsWindow(hwnd):
+                    self.log(f"⚠️ Janela fechada")
+                    break
+                
+                # Envia a tecla para a janela
+                win32api.PostMessage(hwnd, win32con.WM_KEYDOWN, vk, 0)
+                time.sleep(0.01)
+                win32api.PostMessage(hwnd, win32con.WM_KEYUP, vk, 0)
+                
+                time.sleep(interval)
+                
+            except Exception as e:
+                self.log(f"Erro no spam: {e}")
+                break
     
     # ============================================
     # MÉTODOS DE CAPTURA DE POSIÇÃO
@@ -820,6 +1112,8 @@ class GameAutomation:
             return self.tab_values.preset_selector
         elif tab_type == 'search':
             return self.tab_search.preset_selector
+        elif tab_type == 't7':
+            return self.tab_t7.preset_selector
         else:
             return self.tab_keys.preset_selector
     
@@ -846,6 +1140,8 @@ class GameAutomation:
                 'mode': self.tab_search.get_mode(),
                 'min_count': self.tab_search.get_min_count()
             }
+        elif tab_type == 't7':
+            data = self.tab_t7.get_entries_data()
         else:
             data = {
                 'attributes': self.tab_keys.get_entries_data(),
@@ -872,6 +1168,9 @@ class GameAutomation:
         elif tab_type == 'search':
             self.tab_search.load_data(data)
             self.tab_search.preset_selector.set_selected(name)
+        elif tab_type == 't7':
+            self.tab_t7.load_data(data)
+            self.tab_t7.preset_selector.set_selected(name)
         else:
             self.tab_keys.load_data(data)
             self.tab_keys.preset_selector.set_selected(name)
@@ -882,7 +1181,7 @@ class GameAutomation:
         """Atualiza os combos de presets."""
         self.preset_manager.ensure_default_presets()
         
-        for tab_type in ['values', 'search', 'keys']:
+        for tab_type in ['values', 'search', 't7', 'keys']:
             names = self.preset_manager.get_preset_names(tab_type) + ["+ Novo Preset"]
             combo = self._get_preset_combo(tab_type)
             combo.update_values(names)
@@ -898,7 +1197,9 @@ class GameAutomation:
             tab_map = {
                 "🎯 Valores Específicos": 0,
                 "🔍 Busca de Atributos": 1,
-                "🔑 Automação de Chaves": 2
+                "⭐ Buscar T7": 2,
+                "🔑 Automação de Chaves": 3,
+                "⚡ Skill Spam": 4
             }
             active_tab = tab_map.get(active_tab_name, 0)
             
@@ -907,6 +1208,8 @@ class GameAutomation:
                 'attributes': self.tab_values.get_entries_data(),
                 'search_attributes': self.tab_search.get_entries_data(),
                 'keys_attributes': self.tab_keys.get_entries_data(),
+                't7_config': self.tab_t7.get_entries_data(),
+                'skill_spam_config': self.tab_skill_spam.get_entries_data(),
                 'delay': self.delay_var.get(),
                 'click_delay': self.click_delay_var.get(),
                 'max_attempts': self.max_attempts_var.get(),
@@ -1005,10 +1308,18 @@ class GameAutomation:
                 self.bp_position = tuple(config['bp_position'])
                 self.tab_keys.bp_capture.set_position(*self.bp_position)
             
+            # Configuração T7
+            if config.get('t7_config'):
+                self.tab_t7.load_data(config['t7_config'])
+            
+            # Configuração Skill Spam
+            if config.get('skill_spam_config'):
+                self.tab_skill_spam.load_data(config['skill_spam_config'])
+            
             # Aba ativa
             if config.get('active_tab') is not None:
                 try:
-                    tab_names = ["🎯 Valores Específicos", "🔍 Busca de Atributos", "🔑 Automação de Chaves"]
+                    tab_names = ["🎯 Valores Específicos", "🔍 Busca de Atributos", "⭐ Buscar T7", "🔑 Automação de Chaves", "⚡ Skill Spam"]
                     idx = config['active_tab']
                     if 0 <= idx < len(tab_names):
                         self.tabview.set(tab_names[idx])
@@ -1097,6 +1408,7 @@ class GameAutomation:
         self.start_button.configure(text=f"▶ INICIAR ({self.hotkeys['start']})")
         self.stop_button.configure(text=f"⬛ PARAR ({self.hotkeys['stop']})")
         self.tab_keys.update_instructions(self.hotkeys)
+        self.tab_t7.update_instructions(self.hotkeys)
     
     def _check_updates_manual(self):
         """Verifica atualizações manualmente."""

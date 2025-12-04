@@ -48,6 +48,8 @@ class AutomationEngine:
             self._thread = threading.Thread(target=self._loop_attributes, daemon=True)
         elif mode == 'keys':
             self._thread = threading.Thread(target=self._loop_keys, daemon=True)
+        elif mode == 't7':
+            self._thread = threading.Thread(target=self._loop_t7, daemon=True)
         else:
             self.is_running = False
             return False
@@ -420,3 +422,179 @@ class AutomationEngine:
         self.app.log(f"⚠ Máximo de tentativas ({max_attempts}) atingido")
         self.app.log_to_detail(f"\n⚠️ Máximo de tentativas ({max_attempts}) atingido", 'warning')
         self.app.stop_automation()
+    
+    def _loop_t7(self):
+        """Loop de automação para busca por atributos T7."""
+        delay = self._get_delay()
+        max_attempts = self._get_max_attempts()
+        attempts = 0
+        
+        # Pega configurações da aba T7
+        t7_mode = self.app.tab_t7.get_mode()
+        specific_attrs = self.app.tab_t7.get_specific_attributes()
+        
+        mode_text = "QUALQUER T7" if t7_mode == "ANY" else f"T7 em: {', '.join(specific_attrs)}"
+        
+        self.app.log(f"Iniciando automação T7 ({mode_text})...")
+        self.app.log_to_detail("="*60, 'header')
+        self.app.log_to_detail(f"⭐ AUTOMAÇÃO T7 INICIADA - {mode_text}", 'header')
+        self.app.log_to_detail("="*60, 'header')
+        
+        while self.is_running and attempts < max_attempts:
+            try:
+                # Captura a tela
+                screenshot = self.ocr.capture_region(self.app.region)
+                
+                # Tenta múltiplos métodos de OCR para melhor resultado
+                from PIL import ImageEnhance, ImageOps
+                
+                all_results = []
+                
+                # Método 1: Normal
+                text1 = self.ocr.extract_text(screenshot)
+                tiers1 = self.ocr.extract_attributes_with_tiers(text1)
+                all_results.append(tiers1)
+                
+                # Método 2: Contraste
+                gray = screenshot.convert('L')
+                enhanced = ImageEnhance.Contrast(gray).enhance(2.5)
+                text2 = self.ocr.extract_text(enhanced, '--psm 6')
+                tiers2 = self.ocr.extract_attributes_with_tiers(text2)
+                all_results.append(tiers2)
+                
+                # Método 3: Inversão (bom para texto claro em fundo escuro)
+                inverted = ImageOps.invert(gray)
+                inv_contrast = ImageEnhance.Contrast(inverted).enhance(3.0)
+                text3 = self.ocr.extract_text(inv_contrast, '--psm 6')
+                tiers3 = self.ocr.extract_attributes_with_tiers(text3)
+                all_results.append(tiers3)
+                
+                # Pega o melhor resultado (mais atributos)
+                all_tiers = max(all_results, key=len)
+                t7_attrs = [a for a in all_tiers if a['tier'] == 7]
+                
+                # Também verifica T7 em todos os resultados (pode ter sido detectado em outro método)
+                for result in all_results:
+                    for attr in result:
+                        if attr['tier'] == 7:
+                            # Verifica se já não está na lista
+                            if not any(t['name'] == attr['name'] for t in t7_attrs):
+                                t7_attrs.append(attr)
+                
+                self.app.log_to_detail(f"\n--- Tentativa #{attempts + 1} ---", 'header')
+                
+                # Mostra todos os tiers encontrados
+                if all_tiers:
+                    for attr in all_tiers:
+                        tier = attr['tier']
+                        name = attr['name'].upper()
+                        value = attr['value']
+                        
+                        if tier == 7:
+                            self.app.log_to_detail(f"  ⭐ T{tier} {name}: +{value}", 'success')
+                        elif tier >= 5:
+                            self.app.log_to_detail(f"  🔶 T{tier} {name}: +{value}", 'warning')
+                        else:
+                            self.app.log_to_detail(f"  ⚪ T{tier} {name}: +{value}", 'info')
+                else:
+                    self.app.log_to_detail("  (nenhum atributo com tier detectado)", 'warning')
+                
+                # Verifica se encontrou T7
+                found_t7 = False
+                found_attr = None
+                
+                if t7_attrs:
+                    if t7_mode == "ANY":
+                        # Qualquer T7 serve
+                        found_t7 = True
+                        found_attr = t7_attrs[0]
+                    else:
+                        # Precisa ser T7 de atributo específico
+                        for t7 in t7_attrs:
+                            attr_name = t7['name'].lower()
+                            for specific in specific_attrs:
+                                if specific in attr_name or attr_name in specific:
+                                    found_t7 = True
+                                    found_attr = t7
+                                    break
+                            if found_t7:
+                                break
+                
+                if t7_attrs:
+                    self.app.log_to_detail(f"🎯 T7 DETECTADO!", 'success')
+                else:
+                    self.app.log_to_detail("❌ Nenhum T7 nesta tentativa", 'warning')
+                
+                self.app.update_status(f"Tentativa {attempts + 1}: {'T7 ENCONTRADO!' if found_t7 else 'Procurando T7...'}")
+                
+                if found_t7:
+                    self._on_success_t7(attempts + 1, found_attr)
+                    break
+                
+                # Shift + Click para rolar
+                current_pos = pyautogui.position()
+                self._do_shift_click()
+                self.app.log_to_detail(f"🖱️ Shift+Click (pos: {current_pos.x}, {current_pos.y})", 'info')
+                attempts += 1
+                
+                time.sleep(delay)
+                
+                # Verificação extra pós-click
+                if self._check_post_click_t7(t7_mode, specific_attrs):
+                    # Recaptura para pegar o atributo
+                    screenshot = self.ocr.capture_region(self.app.region)
+                    _, t7_attrs = self.ocr.extract_t7_attributes(screenshot)
+                    if t7_attrs:
+                        self._on_success_t7(attempts, t7_attrs[0])
+                    else:
+                        self._on_success_t7(attempts, {'name': 'desconhecido', 'value': '?'})
+                    break
+                
+            except Exception as e:
+                self.app.log(f"Erro: {e}")
+                self.app.log_to_detail(f"❌ ERRO: {e}", 'error')
+                time.sleep(delay)
+        
+        if attempts >= max_attempts:
+            self._on_max_attempts(max_attempts)
+    
+    def _check_post_click_t7(self, t7_mode, specific_attrs):
+        """Verifica se encontrou T7 após o click."""
+        try:
+            screenshot = self.ocr.capture_region(self.app.region)
+            _, t7_attrs = self.ocr.extract_t7_attributes(screenshot)
+            
+            if not t7_attrs:
+                return False
+            
+            if t7_mode == "ANY":
+                return True
+            
+            # Verifica se é o T7 específico
+            for t7 in t7_attrs:
+                attr_name = t7['name'].lower()
+                for specific in specific_attrs:
+                    if specific in attr_name or attr_name in specific:
+                        return True
+            
+            return False
+        except:
+            return False
+    
+    def _on_success_t7(self, attempts, t7_attr):
+        """Callback de sucesso para modo T7."""
+        attr_name = t7_attr.get('name', 'desconhecido').upper()
+        attr_value = t7_attr.get('value', '?')
+        
+        self.app.log(f"⭐ T7 ENCONTRADO! {attr_name}: {attr_value} após {attempts} tentativas")
+        self.app.log_to_detail("\n" + "="*60, 'success')
+        self.app.log_to_detail(f"⭐ T7 ENCONTRADO: {attr_name}: +{attr_value}", 'success')
+        self.app.log_to_detail(f"🎉 SUCESSO após {attempts} tentativas!", 'success')
+        self.app.log_to_detail("="*60, 'success')
+        self.app.stop_automation()
+        messagebox.showinfo(
+            "⭐ T7 Encontrado!",
+            f"Atributo T7 encontrado!\n\n"
+            f"T7 {attr_name}: +{attr_value}\n\n"
+            f"Tentativas: {attempts}"
+        )
