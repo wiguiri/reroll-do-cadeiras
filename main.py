@@ -38,6 +38,13 @@ def main():
         print(f"❌ ERRO: {e}")
         import traceback
         traceback.print_exc()
+        # Mostra erro em messagebox para usuários do .exe
+        try:
+            from tkinter import messagebox
+            messagebox.showerror("Erro", f"Erro ao iniciar:\n{e}\n\nVerifique o console para mais detalhes.")
+        except:
+            pass
+        input("Pressione Enter para fechar...")
 
 
 if __name__ == "__main__":

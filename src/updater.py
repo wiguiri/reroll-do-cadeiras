@@ -169,6 +169,7 @@ class AutoUpdater:
         # Escapa caminhos para batch
         new_exe = new_exe_path.replace('/', '\\')
         cur_exe = current_exe.replace('/', '\\')
+        cur_dir = os.path.dirname(current_exe).replace('/', '\\')
         
         return f'''@echo off
 chcp 65001 >nul
@@ -179,22 +180,33 @@ echo.
 echo Aguardando programa fechar...
 
 :WAIT_LOOP
+timeout /t 1 /nobreak >nul
 tasklist /FI "IMAGENAME eq RerollDoCadeiras.exe" 2>NUL | find /I /N "RerollDoCadeiras.exe">NUL
 if "%ERRORLEVEL%"=="0" (
-    timeout /t 1 /nobreak >nul
+    echo    Ainda em execucao, aguardando...
     goto WAIT_LOOP
 )
 
-echo Programa fechado. Copiando nova versao...
-timeout /t 1 /nobreak >nul
+echo Programa fechado.
+echo Aguardando liberacao de arquivos...
+timeout /t 3 /nobreak >nul
 
+echo Copiando nova versao...
 copy /Y "{new_exe}" "{cur_exe}"
 if errorlevel 1 (
     echo.
     echo ERRO: Falha ao copiar arquivo!
-    echo Verifique se o programa foi fechado corretamente.
-    pause
-    exit /b 1
+    echo Tentando novamente em 3 segundos...
+    timeout /t 3 /nobreak >nul
+    copy /Y "{new_exe}" "{cur_exe}"
+    if errorlevel 1 (
+        echo.
+        echo ERRO FATAL: Nao foi possivel copiar o arquivo.
+        echo Copie manualmente de: {new_exe}
+        echo Para: {cur_exe}
+        pause
+        exit /b 1
+    )
 )
 
 echo.
@@ -206,12 +218,15 @@ echo ========================================
 echo    Atualizacao concluida com sucesso!
 echo ========================================
 echo.
-echo Iniciando nova versao...
-timeout /t 2 /nobreak >nul
+echo Iniciando nova versao em 3 segundos...
+timeout /t 3 /nobreak >nul
 
+cd /d "{cur_dir}"
 start "" "{cur_exe}"
 
-timeout /t 1 /nobreak >nul
+echo.
+echo Fechando instalador...
+timeout /t 2 /nobreak >nul
 del /f /q "%~f0" 2>nul
 exit
 '''
