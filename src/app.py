@@ -387,6 +387,11 @@ class GameAutomation:
             keyboard.add_hotkey(self.hotkeys['test'].lower(), self.test_capture_detailed)
             keyboard.add_hotkey(self.hotkeys['start'].lower(), self.start_automation)
             keyboard.add_hotkey(self.hotkeys['stop'].lower(), self.stop_automation)
+            
+            # Hotkey do Skill Spam
+            skill_spam_hotkey = self.tab_skill_spam.get_hotkey()
+            keyboard.add_hotkey(skill_spam_hotkey.lower(), self.toggle_skill_spam)
+            
             self.log(f"⌨️ Atalhos: {self.hotkeys['region']}/{self.hotkeys['test']}/{self.hotkeys['start']}/{self.hotkeys['stop']}")
         except Exception as e:
             self.log(f"⚠️ Erro ao configurar atalhos: {e}")
@@ -920,13 +925,8 @@ class GameAutomation:
             self.log_to_detail(f"⚡ SKILL SPAM INICIADO", 'header')
             self.log_to_detail(f"🖥️ Programa: {program}", 'info')
             
-            # Registra hotkey para parar
             hotkey = self.tab_skill_spam.get_hotkey()
-            try:
-                keyboard.add_hotkey(hotkey, self.toggle_skill_spam)
-                self.log(f"⌨️ Pressione {hotkey.upper()} para parar")
-            except:
-                pass
+            self.log(f"⌨️ Pressione {hotkey.upper()} para parar")
             
             # Inicia threads para cada skill
             self.skill_spam_threads = []

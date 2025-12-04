@@ -41,15 +41,11 @@ class AutoUpdater:
             latest_version = data.get('tag_name', '').lstrip('v')
             download_url = None
             
-            # Procura o .exe nos assets ou usa o zipball como fallback
+            # Procura o .exe nos assets (APENAS .exe é válido para atualização)
             for asset in data.get('assets', []):
                 if asset['name'].endswith('.exe'):
                     download_url = asset['browser_download_url']
                     break
-            
-            # Se não tem .exe, usa o zipball (código fonte)
-            if not download_url:
-                download_url = data.get('zipball_url')
             
             if self._is_newer_version(latest_version):
                 return {
