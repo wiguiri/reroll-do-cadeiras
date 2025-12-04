@@ -804,6 +804,8 @@ class SkillSpamTab:
         )
         self.hotkey_entry.pack(side="left", padx=10, pady=15)
         self.hotkey_entry.insert(0, "F8")
+        # Atualiza hotkeys quando o usuário sair do campo
+        self.hotkey_entry.bind('<FocusOut>', lambda e: self.app.setup_global_hotkeys())
         
         self.hotkey_btn = ctk.CTkButton(
             hotkey_frame, text="📝 Capturar",
@@ -861,7 +863,7 @@ class SkillSpamTab:
         # Instruções
         ctk.CTkLabel(
             self.parent,
-            text="💡 Teclas: 1-9, a-z, f1-f12, space, ctrl, shift, alt | Intervalo mínimo: 50ms",
+            text="💡 Teclas: a-z, 0-9, F1-F12, Insert, Delete, Home, End, PageUp/Down, Setas, Numpad | Mín: 50ms",
             text_color="#6b7280", wraplength=600,
             font=(UI_CONFIG['font_family'], 10)
         ).pack(pady=(5, 15), padx=15)
@@ -931,6 +933,8 @@ class SkillSpamTab:
             self.hotkey_entry.insert(0, key.upper())
             self.hotkey_btn.configure(text="📝 Capturar")
             keyboard.unhook(hook)
+            # Atualiza os hotkeys globais imediatamente
+            self.app.root.after(100, self.app.setup_global_hotkeys)
         
         hook = keyboard.on_press(on_key)
     

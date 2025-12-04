@@ -1,12 +1,68 @@
 {
   "values": {
-    "Preset 1": []
+    "Preset 1": [],
+    "teste": [
+      {
+        "name": "Energy Shield Percent",
+        "value": "15"
+      },
+      {
+        "name": "Health Percent",
+        "value": "10"
+      },
+      {
+        "name": "Health",
+        "value": "170"
+      },
+      {
+        "name": "Mana Percent",
+        "value": "24"
+      },
+      {
+        "name": "Strength",
+        "value": "23"
+      }
+    ]
   },
   "search": {
     "Preset 1": {
       "attributes": [],
       "mode": "ALL",
       "min_count": "3"
+    },
+    "equip tank": {
+      "attributes": [
+        {
+          "name": "Health",
+          "required": false
+        },
+        {
+          "name": "Health Percent",
+          "required": false
+        },
+        {
+          "name": "Mana",
+          "required": false
+        },
+        {
+          "name": "Mana Percent",
+          "required": false
+        },
+        {
+          "name": "Strength",
+          "required": false
+        },
+        {
+          "name": "Brute Damage",
+          "required": false
+        },
+        {
+          "name": "Energy Shield Percent",
+          "required": false
+        }
+      ],
+      "mode": "MIN",
+      "min_count": "4"
     }
   },
   "keys": {

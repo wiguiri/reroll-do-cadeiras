@@ -732,6 +732,21 @@ class GameAutomation:
             current_values
         )
     
+    def _match_attribute(self, search_name, found_name):
+        """
+        Verifica se o atributo buscado corresponde ao encontrado.
+        Usa comparação EXATA para evitar falsos positivos.
+        """
+        search_name = search_name.lower().strip()
+        found_name = found_name.lower().strip()
+        
+        # Normaliza espaços múltiplos
+        search_name = ' '.join(search_name.split())
+        found_name = ' '.join(found_name.split())
+        
+        # Comparação EXATA
+        return search_name == found_name
+    
     def _check_attributes_generic(self, entries, mode, min_count_str, current_values):
         """Verificação genérica de atributos."""
         required_must_have = []
@@ -763,7 +778,7 @@ class GameAutomation:
         for attr_name in required_must_have:
             found_value = None
             for current_key, current_val in normalized_current.items():
-                if attr_name in current_key or current_key in attr_name:
+                if self._match_attribute(attr_name, current_key):
                     found_value = current_val
                     break
             
@@ -778,7 +793,7 @@ class GameAutomation:
         for attr_name in required_optional:
             found_value = None
             for current_key, current_val in normalized_current.items():
-                if attr_name in current_key or current_key in attr_name:
+                if self._match_attribute(attr_name, current_key):
                     found_value = current_val
                     break
             
@@ -968,14 +983,39 @@ class GameAutomation:
         
         # Mapeamento de teclas especiais
         vk_codes = {
+            # Teclas de função
             'f1': 0x70, 'f2': 0x71, 'f3': 0x72, 'f4': 0x73,
             'f5': 0x74, 'f6': 0x75, 'f7': 0x76, 'f8': 0x77,
             'f9': 0x78, 'f10': 0x79, 'f11': 0x7A, 'f12': 0x7B,
+            # Teclas de controle
             'space': 0x20, 'enter': 0x0D, 'tab': 0x09,
             'shift': 0x10, 'ctrl': 0x11, 'alt': 0x12,
-            'esc': 0x1B, 'backspace': 0x08,
+            'esc': 0x1B, 'backspace': 0x08, 'escape': 0x1B,
+            # Teclas de edição
+            'insert': 0x2D, 'delete': 0x2E, 'del': 0x2E,
+            'home': 0x24, 'end': 0x23,
+            'pageup': 0x21, 'page up': 0x21, 'pgup': 0x21,
+            'pagedown': 0x22, 'page down': 0x22, 'pgdn': 0x22,
+            # Setas
+            'up': 0x26, 'down': 0x28, 'left': 0x25, 'right': 0x27,
+            'arrow up': 0x26, 'arrow down': 0x28, 'arrow left': 0x25, 'arrow right': 0x27,
+            # Numpad
+            'num0': 0x60, 'num1': 0x61, 'num2': 0x62, 'num3': 0x63, 'num4': 0x64,
+            'num5': 0x65, 'num6': 0x66, 'num7': 0x67, 'num8': 0x68, 'num9': 0x69,
+            'numpad0': 0x60, 'numpad1': 0x61, 'numpad2': 0x62, 'numpad3': 0x63, 'numpad4': 0x64,
+            'numpad5': 0x65, 'numpad6': 0x66, 'numpad7': 0x67, 'numpad8': 0x68, 'numpad9': 0x69,
+            'multiply': 0x6A, 'add': 0x6B, 'subtract': 0x6D, 'decimal': 0x6E, 'divide': 0x6F,
+            'num*': 0x6A, 'num+': 0x6B, 'num-': 0x6D, 'num.': 0x6E, 'num/': 0x6F,
+            # Números
             '0': 0x30, '1': 0x31, '2': 0x32, '3': 0x33, '4': 0x34,
             '5': 0x35, '6': 0x36, '7': 0x37, '8': 0x38, '9': 0x39,
+            # Símbolos
+            '-': 0xBD, '=': 0xBB, '[': 0xDB, ']': 0xDD, '\\': 0xDC,
+            ';': 0xBA, "'": 0xDE, ',': 0xBC, '.': 0xBE, '/': 0xBF, '`': 0xC0,
+            # Caps/Num/Scroll Lock
+            'capslock': 0x14, 'caps': 0x14, 'numlock': 0x90, 'scrolllock': 0x91,
+            # Print Screen, Pause
+            'printscreen': 0x2C, 'print': 0x2C, 'pause': 0x13,
         }
         
         # Obtém o código da tecla
