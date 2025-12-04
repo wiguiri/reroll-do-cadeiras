@@ -955,12 +955,7 @@ class GameAutomation:
         self.skill_spam_running = False
         self.tab_skill_spam.set_running(False)
         
-        # Remove hotkey
-        try:
-            hotkey = self.tab_skill_spam.get_hotkey()
-            keyboard.remove_hotkey(hotkey)
-        except:
-            pass
+        # NÃO remove o hotkey - ele deve continuar funcionando para toggle
         
         self.log("⏹️ Skill Spam PARADO")
         self.log_to_detail("\n⏹️ SKILL SPAM PARADO", 'warning')
