@@ -84,6 +84,9 @@ class GameAutomation:
         self._setup_local_hotkeys()
         self.setup_global_hotkeys()
         
+        # Verificar atualizações automaticamente ao iniciar
+        self.root.after(2000, self._check_updates_auto)
+        
         # Eventos
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
     
@@ -1409,6 +1412,28 @@ class GameAutomation:
         self.stop_button.configure(text=f"⬛ PARAR ({self.hotkeys['stop']})")
         self.tab_keys.update_instructions(self.hotkeys)
         self.tab_t7.update_instructions(self.hotkeys)
+    
+    def _check_updates_auto(self):
+        """Verifica atualizações automaticamente ao iniciar."""
+        def check():
+            try:
+                updater = AutoUpdater()
+                result = updater.check_for_updates()
+                
+                if result.get('available'):
+                    self.root.after(0, lambda: self._show_update_available(result, updater))
+            except Exception as e:
+                print(f"Erro ao verificar atualizações: {e}")
+        
+        threading.Thread(target=check, daemon=True).start()
+    
+    def _show_update_available(self, result, updater):
+        """Mostra notificação de atualização disponível."""
+        self.log(f"🆕 Nova versão disponível: v{result['version']}")
+        UpdateDialog(
+            self.root, result,
+            lambda url: self._perform_update(updater, url)
+        )
     
     def _check_updates_manual(self):
         """Verifica atualizações manualmente."""

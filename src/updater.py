@@ -8,6 +8,7 @@ import os
 import sys
 import subprocess
 import tempfile
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -40,18 +41,23 @@ class AutoUpdater:
             latest_version = data.get('tag_name', '').lstrip('v')
             download_url = None
             
-            # Procura o .exe nos assets
+            # Procura o .exe nos assets ou usa o zipball como fallback
             for asset in data.get('assets', []):
                 if asset['name'].endswith('.exe'):
                     download_url = asset['browser_download_url']
                     break
+            
+            # Se não tem .exe, usa o zipball (código fonte)
+            if not download_url:
+                download_url = data.get('zipball_url')
             
             if self._is_newer_version(latest_version):
                 return {
                     'available': True,
                     'version': latest_version,
                     'download_url': download_url,
-                    'release_notes': data.get('body', 'Sem notas de atualização')
+                    'release_notes': data.get('body', 'Sem notas de atualização'),
+                    'html_url': data.get('html_url', '')
                 }
             
             return {'available': False}
@@ -93,13 +99,33 @@ class AutoUpdater:
             temp_dir = tempfile.gettempdir()
             new_exe_path = os.path.join(temp_dir, "RerollDoCadeiras_new.exe")
             
-            # Baixa o arquivo com progresso
-            def report_progress(block_num, block_size, total_size):
-                if progress_callback and total_size > 0:
-                    percent = min(100, (block_num * block_size * 100) // total_size)
-                    progress_callback(percent)
+            # Baixa o arquivo com chunks para melhor performance
+            req = urllib.request.Request(
+                download_url,
+                headers={'User-Agent': 'RerollDoCadeiras-Updater'}
+            )
             
-            urllib.request.urlretrieve(download_url, new_exe_path, report_progress)
+            with urllib.request.urlopen(req, timeout=60) as response:
+                total_size = int(response.headers.get('Content-Length', 0))
+                downloaded = 0
+                chunk_size = 65536  # 64KB chunks para download mais rápido
+                
+                with open(new_exe_path, 'wb') as f:
+                    while True:
+                        chunk = response.read(chunk_size)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        
+                        if progress_callback and total_size > 0:
+                            percent = min(100, (downloaded * 100) // total_size)
+                            progress_callback(percent)
+            
+            # Verifica se o arquivo foi baixado
+            if not os.path.exists(new_exe_path) or os.path.getsize(new_exe_path) < 1000:
+                print("Erro: Arquivo baixado está vazio ou muito pequeno")
+                return False
             
             # Cria script batch para substituir o executável
             current_exe = sys.executable if getattr(sys, 'frozen', False) else None
@@ -108,21 +134,29 @@ class AutoUpdater:
                 batch_path = os.path.join(temp_dir, "update_reroll.bat")
                 batch_content = self._create_update_batch(new_exe_path, current_exe)
                 
-                with open(batch_path, 'w') as f:
+                with open(batch_path, 'w', encoding='utf-8') as f:
                     f.write(batch_content)
                 
-                # Executa o batch e fecha o programa
+                # Executa o batch em processo separado
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                
                 subprocess.Popen(
-                    batch_path, 
-                    shell=True, 
-                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                    ['cmd', '/c', batch_path],
+                    creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.CREATE_NEW_PROCESS_GROUP,
+                    startupinfo=startupinfo,
+                    close_fds=True
                 )
                 return True
-            
-            return False
+            else:
+                # Modo desenvolvimento - apenas notifica
+                print(f"Modo dev: Novo exe baixado em {new_exe_path}")
+                return False
             
         except Exception as e:
             print(f"Erro ao instalar atualização: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def _create_update_batch(self, new_exe_path, current_exe):
@@ -136,20 +170,52 @@ class AutoUpdater:
         Returns:
             str: Conteúdo do script batch.
         """
+        # Escapa caminhos para batch
+        new_exe = new_exe_path.replace('/', '\\')
+        cur_exe = current_exe.replace('/', '\\')
+        
         return f'''@echo off
+chcp 65001 >nul
 echo ========================================
 echo    Atualizando Reroll do Cadeiras...
 echo ========================================
-timeout /t 2 /nobreak >nul
-copy /Y "{new_exe_path}" "{current_exe}"
+echo.
+echo Aguardando programa fechar...
+
+:WAIT_LOOP
+tasklist /FI "IMAGENAME eq RerollDoCadeiras.exe" 2>NUL | find /I /N "RerollDoCadeiras.exe">NUL
+if "%ERRORLEVEL%"=="0" (
+    timeout /t 1 /nobreak >nul
+    goto WAIT_LOOP
+)
+
+echo Programa fechado. Copiando nova versao...
+timeout /t 1 /nobreak >nul
+
+copy /Y "{new_exe}" "{cur_exe}"
 if errorlevel 1 (
+    echo.
     echo ERRO: Falha ao copiar arquivo!
+    echo Verifique se o programa foi fechado corretamente.
     pause
     exit /b 1
 )
-del "{new_exe_path}"
-echo Atualizacao concluida! Reiniciando...
+
+echo.
+echo Limpando arquivos temporarios...
+del /f /q "{new_exe}" 2>nul
+
+echo.
+echo ========================================
+echo    Atualizacao concluida com sucesso!
+echo ========================================
+echo.
+echo Iniciando nova versao...
+timeout /t 2 /nobreak >nul
+
+start "" "{cur_exe}"
+
 timeout /t 1 /nobreak >nul
-start "" "{current_exe}"
-del "%~f0"
+del /f /q "%~f0" 2>nul
+exit
 '''

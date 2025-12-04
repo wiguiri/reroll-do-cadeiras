@@ -276,7 +276,11 @@ class UpdateDialog:
         if len(notes) > 500:
             notes = notes[:500] + "..."
         
-        msg = f"""🎉 Nova versão disponível!
+        download_url = update_info.get('download_url', '')
+        has_exe = download_url and download_url.endswith('.exe')
+        
+        if has_exe:
+            msg = f"""🎉 Nova versão disponível!
 
 📌 Versão atual: {APP_VERSION}
 🆕 Nova versão: {update_info['version']}
@@ -285,12 +289,27 @@ class UpdateDialog:
 {notes}
 
 Deseja atualizar agora?"""
-        
-        if messagebox.askyesno("🔄 Atualização Disponível", msg):
-            if update_info.get('download_url'):
-                on_update(update_info['download_url'])
-            else:
-                messagebox.showerror("Erro", "URL de download não encontrada na release.")
+            
+            if messagebox.askyesno("🔄 Atualização Disponível", msg):
+                on_update(download_url)
+        else:
+            # Não tem .exe, mostra link para download manual
+            import webbrowser
+            html_url = update_info.get('html_url', f"https://github.com/wiguiri/reroll-do-cadeiras/releases")
+            
+            msg = f"""🎉 Nova versão disponível!
+
+📌 Versão atual: {APP_VERSION}
+🆕 Nova versão: {update_info['version']}
+
+📝 Notas da atualização:
+{notes}
+
+⚠️ Atualização automática não disponível.
+Deseja abrir a página de download no navegador?"""
+            
+            if messagebox.askyesno("🔄 Atualização Disponível", msg):
+                webbrowser.open(html_url)
 
 
 class UpdateProgressDialog:
