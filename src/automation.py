@@ -403,6 +403,10 @@ class AutomationEngine:
         
         if roll_attempt >= max_roll_attempts:
             self.app.log(f"⚠️ Limite de {max_roll_attempts} rolagens atingido")
+            
+            # Desseleciona o orb antes de continuar para próxima chave
+            pyautogui.click(button='right')
+            time.sleep(0.15)
         
         time.sleep(delay * 0.5)
     

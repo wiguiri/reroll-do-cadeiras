@@ -319,7 +319,7 @@ class GameAutomation:
         # Delay entre pressões
         ctk.CTkLabel(settings_row, text="Delay (s):").pack(side="left", padx=(0, 5))
         self.delay_var = tk.StringVar(value="0.4")
-        ctk.CTkEntry(settings_row, textvariable=self.delay_var, width=70, placeholder_text="0.1").pack(side="left", padx=(0, 20))
+        ctk.CTkEntry(settings_row, textvariable=self.delay_var, width=70, placeholder_text="0.5").pack(side="left", padx=(0, 20))
         
         # Delay do click
         ctk.CTkLabel(settings_row, text="Click (ms):").pack(side="left", padx=(0, 5))
@@ -2524,6 +2524,10 @@ class GameAutomation:
                     if roll_attempt >= max_roll_attempts:
                         self.log(f"⚠️ Não conseguiu atributos bons após {max_roll_attempts} tentativas. Próxima chave...")
                         self.log_to_detail(f"⚠️ Limite de {max_roll_attempts} rolagens atingido. Próxima chave...", 'warning')
+                        
+                        # Desseleciona o orb antes de continuar para próxima chave
+                        pyautogui.click(button='right')
+                        time.sleep(0.15)
                     
                     # Pequeno delay antes da próxima chave
                     time.sleep(delay * 0.5)
@@ -2992,9 +2996,8 @@ Deseja atualizar agora?"""
                             "Falha ao instalar atualização.\n\nTente novamente mais tarde.")
     
     def start_automation(self):
-        # Se já está rodando, não permite iniciar novamente
+        # Se já está rodando, ignora silenciosamente
         if self.is_running:
-            messagebox.showinfo("Aviso", "Automação já está em execução")
             return
         
         if not self.region:

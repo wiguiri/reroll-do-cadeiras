@@ -829,8 +829,7 @@ class GameAutomation:
     def start_automation(self):
         """Inicia a automação."""
         if self.is_running:
-            messagebox.showinfo("Aviso", "Automação já está em execução")
-            return
+            return  # Silenciosamente ignora se já está rodando
         
         if not self.region:
             messagebox.showwarning("Aviso", "Configure a região primeiro")
